@@ -6,6 +6,7 @@ import 'data/models/chat_message.dart';
 import 'data/repositories/chat_repository.dart';
 import 'data/repositories/model_repository.dart';
 import 'services/gemma_service.dart';
+import 'core/config/app_secrets.dart';
 import 'app.dart';
 
 void main() async {
@@ -18,11 +19,18 @@ void main() async {
   await ChatRepository.openBox();
   await ModelRepository.openBox();
 
+  // Load the HuggingFace token from lib/.env (or --dart-define).
+  await AppSecrets.load();
+
   // flutter_gemma initialization — wires up the service, no download
-  const hfToken = String.fromEnvironment('HUGGINGFACE_TOKEN');
   await GemmaService.instance.initialize(
-    huggingFaceToken: hfToken.isNotEmpty ? hfToken : null,
+    huggingFaceToken: AppSecrets.huggingFaceToken,
   );
+
+  // Downloads only run with the screen open, so cancel any task WorkManager
+  // auto-resumed from a previous session — a broken one would otherwise keep
+  // resuming in the background and block fresh downloads at 0%.
+  await GemmaService.instance.clearStaleDownloads();
 
   runApp(const ProviderScope(child: App()));
 }

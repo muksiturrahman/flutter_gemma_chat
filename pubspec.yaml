@@ -59,6 +59,17 @@ dependencies:
   uuid: ^4.5.1
   intl: ^0.20.1
 
+  # Loads the HuggingFace token from lib/.env at runtime
+  flutter_dotenv: ^5.2.1
+
+  # Same downloader flutter_gemma uses — lets us clear ghost download tasks
+  # that otherwise leave a download stuck at 0%.
+  background_downloader: ^9.2.3
+
+  # Detect emulators (no OpenCL/GPU) so we can force the CPU backend and avoid
+  # a native SIGSEGV in the GPU inference path.
+  device_info_plus: ^11.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -77,6 +88,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Bundle the .env file so flutter_dotenv can read it at runtime.
+  assets:
+    - lib/.env
 
   # To add assets to your application, add an assets section, like this:
   # assets:

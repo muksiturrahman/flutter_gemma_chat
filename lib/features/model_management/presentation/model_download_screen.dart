@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/config/app_secrets.dart';
 import '../../../core/widgets/glass_container.dart';
 import '../../../data/models/gemma_model_info.dart';
 import '../providers/model_install_provider.dart';
@@ -23,10 +24,9 @@ class _ModelDownloadScreenState extends ConsumerState<ModelDownloadScreen> {
   }
 
   void _startDownload() {
-    const token = String.fromEnvironment('HUGGINGFACE_TOKEN');
     ref.read(modelInstallProvider.notifier).install(
           info: widget.model,
-          authToken: token.isNotEmpty ? token : null,
+          authToken: AppSecrets.huggingFaceToken,
         );
   }
 

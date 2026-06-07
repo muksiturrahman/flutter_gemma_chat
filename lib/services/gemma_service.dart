@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 
@@ -32,6 +33,26 @@ class GemmaService {
 
   bool get hasActiveModel => FlutterGemma.hasActiveModel();
 
+  // ── Download maintenance ──────────────────────────────────────────────────
+
+  /// flutter_gemma's smart downloader derives a deterministic task id from the
+  /// URL and attaches to any pre-existing task with that id. A download that
+  /// was interrupted (app killed, earlier auth failure) can leave a ghost task
+  /// in background_downloader's database — the next attempt then attaches to it
+  /// and waits forever for updates that never arrive, so the progress bar is
+  /// stuck at 0%. Cancelling the group's tasks clears those ghosts so a fresh
+  /// download can start.
+  static const _downloadGroup = 'smart_downloads';
+
+  Future<void> clearStaleDownloads() async {
+    try {
+      await FileDownloader().reset(group: _downloadGroup);
+      await FileDownloader().cancelAll(group: _downloadGroup);
+    } catch (e) {
+      debugPrint('GemmaService: clearStaleDownloads failed ($e)');
+    }
+  }
+
   // ── Model installation ────────────────────────────────────────────────────
 
   /// Returns a stream of download progress (0–100).
@@ -57,6 +78,25 @@ class GemmaService {
     });
 
     return controller.stream;
+  }
+
+  /// Registers an already-downloaded model as the active inference model
+  /// without re-downloading it.
+  ///
+  /// flutter_gemma's `getActiveModel()` reads in-memory state that is only
+  /// populated by `installModel().install()` — and that state is lost on every
+  /// app restart. When the model file already exists on disk, `install()`
+  /// detects it, skips the network download, and just re-sets the active spec,
+  /// so this is cheap to call every time before loading.
+  Future<void> ensureModelRegistered({
+    required String url,
+    required ModelType modelType,
+    required ModelFileType fileType,
+    String? authToken,
+  }) async {
+    await FlutterGemma.installModel(modelType: modelType, fileType: fileType)
+        .fromNetwork(url, token: authToken)
+        .install();
   }
 
   // ── Model loading ─────────────────────────────────────────────────────────

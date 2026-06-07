@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
+import '../../../core/config/app_secrets.dart';
+import '../../../core/config/device_capabilities.dart';
 import '../../../data/models/gemma_model_info.dart';
 import '../../../data/repositories/model_repository.dart';
 import '../../../services/gemma_service.dart';
@@ -48,9 +50,27 @@ class ModelLoadNotifier extends Notifier<ModelLoadState> {
   Future<void> loadModel(GemmaModelInfo info) async {
     state = ModelLoadState.loading;
     try {
-      final backendIdx = _repo.preferredBackendIndex;
-      final backend =
-          backendIdx == 0 ? PreferredBackend.cpu : PreferredBackend.gpu;
+      // Re-register the (already downloaded) model as active. The active spec
+      // lives in memory and is cleared on every app restart, so getActiveModel
+      // would otherwise throw "No active inference model set".
+      final url = info.downloadUrl;
+      if (url != null) {
+        await GemmaService.instance.ensureModelRegistered(
+          url: url,
+          modelType: info.modelType,
+          fileType: info.fileType,
+          authToken: AppSecrets.huggingFaceToken,
+        );
+      }
+
+      // GPU init crashes natively (SIGSEGV) on emulators that lack OpenCL, and
+      // a native crash can't be caught — so force CPU there regardless of the
+      // saved preference.
+      final prefersGpu = _repo.preferredBackendIndex != 0;
+      final canUseGpu = await DeviceCapabilities.canUseGpu;
+      final backend = (prefersGpu && canUseGpu)
+          ? PreferredBackend.gpu
+          : PreferredBackend.cpu;
       await GemmaService.instance.loadModel(
         supportImage: info.supportsImage,
         backend: backend,
@@ -133,6 +153,10 @@ class ModelInstallNotifier extends Notifier<InstallState> {
       progress: 0,
       totalKb: totalKb,
     );
+
+    // Clear any ghost download task left by a previous interrupted/failed
+    // attempt, otherwise the new download attaches to it and hangs at 0%.
+    await GemmaService.instance.clearStaleDownloads();
 
     final stream = GemmaService.instance.installModelFromNetwork(
       url: url,
