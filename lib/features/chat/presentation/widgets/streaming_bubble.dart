@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../features/chat/providers/chat_session_provider.dart';
 import 'thinking_indicator.dart';
@@ -11,21 +12,42 @@ class StreamingBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final radius = const BorderRadius.only(
+      topLeft: Radius.circular(20),
+      topRight: Radius.circular(20),
+      bottomRight: Radius.circular(20),
+      bottomLeft: Radius.circular(6),
+    );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: colorScheme.secondaryContainer,
-            child: Icon(
-              Icons.auto_awesome_outlined,
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [scheme.secondary, scheme.primary],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
               size: 16,
-              color: colorScheme.onSecondaryContainer,
+              color: Colors.white,
             ),
           ),
           const SizedBox(width: 8),
@@ -38,30 +60,50 @@ class StreamingBubble extends StatelessWidget {
                     thinkingText: streamState.thinkingText,
                     isStreaming: streamState.isThinking,
                   ),
-                Container(
+                ConstrainedBox(
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width * 0.78,
                   ),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHigh,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(18),
-                      bottomRight: Radius.circular(18),
-                      bottomLeft: Radius.circular(4),
+                  child: ClipRRect(
+                    borderRadius: radius,
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: radius,
+                          color: (isDark ? Colors.white : Colors.white)
+                              .withValues(alpha: isDark ? 0.10 : 0.55),
+                          border: Border.all(
+                            color: Colors.white
+                                .withValues(alpha: isDark ? 0.15 : 0.55),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black
+                                  .withValues(alpha: isDark ? 0.25 : 0.06),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: streamState.streamingText.isEmpty
+                            ? _TypingDots(color: scheme.primary)
+                            : Text(
+                                streamState.streamingText,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: scheme.onSurface,
+                                      height: 1.4,
+                                    ),
+                              ),
+                      ),
                     ),
                   ),
-                  child: streamState.streamingText.isEmpty
-                      ? _TypingDots()
-                      : Text(
-                          streamState.streamingText,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: colorScheme.onSurface),
-                        ),
                 ),
               ],
             ),
@@ -73,6 +115,9 @@ class StreamingBubble extends StatelessWidget {
 }
 
 class _TypingDots extends StatefulWidget {
+  final Color color;
+  const _TypingDots({required this.color});
+
   @override
   State<_TypingDots> createState() => _TypingDotsState();
 }
@@ -100,7 +145,7 @@ class _TypingDotsState extends State<_TypingDots>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (context, child) {
+      builder: (context, _) {
         final step = (_controller.value * 3).floor();
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -115,7 +160,7 @@ class _TypingDotsState extends State<_TypingDots>
                   height: 7,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: widget.color,
                   ),
                 ),
               ),

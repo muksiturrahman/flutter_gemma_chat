@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 /// Collapsible panel showing Gemma 4's internal thinking text.
@@ -20,73 +21,92 @@ class _ThinkingIndicatorState extends State<ThinkingIndicator> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final radius = BorderRadius.circular(14);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: colorScheme.secondaryContainer, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  if (widget.isStreaming)
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colorScheme.onSecondaryContainer,
-                      ),
-                    )
-                  else
-                    Icon(Icons.psychology_outlined,
-                        size: 16,
-                        color: colorScheme.onSecondaryContainer),
-                  const SizedBox(width: 6),
-                  Text(
-                    widget.isStreaming ? 'Thinking…' : 'Thought process',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSecondaryContainer,
-                          fontStyle: FontStyle.italic,
-                        ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    _expanded
-                        ? Icons.expand_less
-                        : Icons.expand_more,
-                    size: 16,
-                    color: colorScheme.onSecondaryContainer,
-                  ),
-                ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              color: scheme.secondary.withValues(alpha: isDark ? 0.18 : 0.14),
+              border: Border.all(
+                color: scheme.secondary.withValues(alpha: 0.35),
+                width: 1,
               ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  borderRadius: radius,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    child: Row(
+                      children: [
+                        if (widget.isStreaming)
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: scheme.secondary,
+                            ),
+                          )
+                        else
+                          Icon(Icons.psychology_rounded,
+                              size: 16, color: scheme.secondary),
+                        const SizedBox(width: 8),
+                        Text(
+                          widget.isStreaming
+                              ? 'Thinking…'
+                              : 'Thought process',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelMedium
+                              ?.copyWith(
+                                color: scheme.onSurface
+                                    .withValues(alpha: 0.75),
+                                fontStyle: FontStyle.italic,
+                              ),
+                        ),
+                        const Spacer(),
+                        Icon(
+                          _expanded
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                          size: 18,
+                          color: scheme.onSurface.withValues(alpha: 0.65),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (_expanded)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: Text(
+                      widget.thinkingText,
+                      style:
+                          Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurface
+                                    .withValues(alpha: 0.75),
+                                fontStyle: FontStyle.italic,
+                                height: 1.4,
+                              ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          if (_expanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-              child: Text(
-                widget.thinkingText,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSecondaryContainer
-                          .withValues(alpha: 0.8),
-                      fontStyle: FontStyle.italic,
-                    ),
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }

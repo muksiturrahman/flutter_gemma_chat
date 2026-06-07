@@ -19,18 +19,14 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
 
 // ── Thread list ───────────────────────────────────────────────────────────────
 
-final threadListProvider =
-    StateNotifierProvider<ThreadListNotifier, List<ChatThread>>((ref) {
-  final repo = ref.watch(chatRepositoryProvider);
-  return ThreadListNotifier(repo);
-});
+class ThreadListNotifier extends Notifier<List<ChatThread>> {
+  late final ChatRepository _repo;
 
-class ThreadListNotifier extends StateNotifier<List<ChatThread>> {
-  final ChatRepository _repo;
-
-  ThreadListNotifier(ChatRepository repo)
-      : _repo = repo,
-        super(repo.getAll());
+  @override
+  List<ChatThread> build() {
+    _repo = ref.read(chatRepositoryProvider);
+    return _repo.getAll();
+  }
 
   void refresh() => state = _repo.getAll();
 
@@ -58,9 +54,24 @@ class ThreadListNotifier extends StateNotifier<List<ChatThread>> {
   }
 }
 
+final threadListProvider =
+    NotifierProvider<ThreadListNotifier, List<ChatThread>>(
+  ThreadListNotifier.new,
+);
+
 // ── Active thread ID ──────────────────────────────────────────────────────────
 
-final activeThreadIdProvider = StateProvider<String?>((ref) => null);
+class ActiveThreadIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? id) => state = id;
+}
+
+final activeThreadIdProvider =
+    NotifierProvider<ActiveThreadIdNotifier, String?>(
+  ActiveThreadIdNotifier.new,
+);
 
 final activeThreadProvider = Provider<ChatThread?>((ref) {
   final id = ref.watch(activeThreadIdProvider);
@@ -103,11 +114,14 @@ class ChatStreamState {
 
 // ── Chat notifier ─────────────────────────────────────────────────────────────
 
-class ChatNotifier extends StateNotifier<ChatStreamState> {
-  final ChatRepository _repo;
-  final Ref _ref;
+class ChatNotifier extends Notifier<ChatStreamState> {
+  late final ChatRepository _repo;
 
-  ChatNotifier(this._repo, this._ref) : super(const ChatStreamState());
+  @override
+  ChatStreamState build() {
+    _repo = ref.read(chatRepositoryProvider);
+    return const ChatStreamState();
+  }
 
   Future<void> sendMessage({
     required String threadId,
@@ -126,7 +140,7 @@ class ChatNotifier extends StateNotifier<ChatStreamState> {
       imageBytes: imageBytes,
     );
     await _repo.addMessage(threadId, userMsg);
-    _ref.read(threadListProvider.notifier).refresh();
+    ref.read(threadListProvider.notifier).refresh();
 
     // Auto-title from first user message
     final thread = _repo.getById(threadId);
@@ -143,12 +157,12 @@ class ChatNotifier extends StateNotifier<ChatStreamState> {
       timestamp: DateTime.now(),
     );
     await _repo.addMessage(threadId, assistantMsg);
-    _ref.read(threadListProvider.notifier).refresh();
+    ref.read(threadListProvider.notifier).refresh();
 
     state = const ChatStreamState(isStreaming: true);
 
     try {
-      final activeModelId = _ref.read(activeModelIdProvider);
+      final activeModelId = ref.read(activeModelIdProvider);
       final modelInfo = activeModelId != null ? modelById(activeModelId) : null;
       final supportsThinking =
           useThinking && (modelInfo?.supportsThinking ?? false);
@@ -199,13 +213,13 @@ class ChatNotifier extends StateNotifier<ChatStreamState> {
         thinkingText:
             accumThinking.isNotEmpty ? accumThinking.toString() : null,
       );
-      _ref.read(threadListProvider.notifier).refresh();
+      ref.read(threadListProvider.notifier).refresh();
 
       state = const ChatStreamState();
     } catch (e) {
       state = ChatStreamState(error: e.toString());
       await _repo.updateLastMessage(threadId, '⚠ ${e.toString()}');
-      _ref.read(threadListProvider.notifier).refresh();
+      ref.read(threadListProvider.notifier).refresh();
     }
   }
 
@@ -221,6 +235,4 @@ class ChatNotifier extends StateNotifier<ChatStreamState> {
 }
 
 final chatNotifierProvider =
-    StateNotifierProvider<ChatNotifier, ChatStreamState>((ref) {
-  return ChatNotifier(ref.watch(chatRepositoryProvider), ref);
-});
+    NotifierProvider<ChatNotifier, ChatStreamState>(ChatNotifier.new);

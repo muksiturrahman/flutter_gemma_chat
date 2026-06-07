@@ -38,8 +38,11 @@ class GemmaModelInfo {
 
   String? get downloadUrl => isDesktopPlatform ? desktopUrl : mobileUrl;
 
-  ModelFileType get fileType =>
-      isDesktopPlatform ? ModelFileType.litertlm : ModelFileType.task;
+  ModelFileType get fileType {
+    final url = downloadUrl ?? '';
+    if (url.endsWith('.litertlm')) return ModelFileType.litertlm;
+    return ModelFileType.task;
+  }
 
   bool get isAvailableOnCurrentPlatform => downloadUrl != null;
 

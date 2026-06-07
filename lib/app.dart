@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'core/routing/app_router.dart';
+import 'core/widgets/gradient_background.dart';
 import 'features/model_management/providers/model_install_provider.dart';
 
 class App extends ConsumerWidget {
@@ -25,6 +26,9 @@ class App extends ConsumerWidget {
       themeMode: themeMode,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => GradientBackground(
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }

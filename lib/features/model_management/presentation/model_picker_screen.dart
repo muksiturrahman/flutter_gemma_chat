@@ -1,7 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_gemma/flutter_gemma.dart' show FlutterGemma;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/glass_container.dart';
 import '../../../data/models/gemma_model_info.dart';
 import '../../../data/sources/model_registry.dart';
 import '../providers/model_install_provider.dart';
@@ -16,19 +18,22 @@ class ModelPickerScreen extends ConsumerWidget {
     final loadState = ref.watch(modelLoadProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Select Model'),
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: _GlassAppBar(
+        title: 'Select Model',
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => context.push('/settings'),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 96, 16, 24),
         itemCount: kModelRegistry.length,
-        separatorBuilder: (_, i) => const SizedBox(height: 8),
+        separatorBuilder: (_, i) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
           final model = kModelRegistry[i];
           return _ModelCard(
@@ -83,6 +88,35 @@ class ModelPickerScreen extends ConsumerWidget {
   }
 }
 
+class _GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  final List<Widget>? actions;
+
+  const _GlassAppBar({required this.title, this.actions});
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+        child: AppBar(
+          title: Text(title),
+          actions: actions,
+          backgroundColor: (isDark ? Colors.white : Colors.white)
+              .withValues(alpha: isDark ? 0.06 : 0.35),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+        ),
+      ),
+    );
+  }
+}
+
 class _ModelCard extends StatelessWidget {
   final GemmaModelInfo model;
   final bool isActive;
@@ -98,95 +132,154 @@ class _ModelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final unavailable = !model.isAvailableOnCurrentPlatform;
 
-    return Card(
-      elevation: isActive ? 3 : 1,
-      color: isActive ? colorScheme.primaryContainer : null,
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: isActive
-              ? colorScheme.primary
-              : colorScheme.surfaceContainerHighest,
-          child: Icon(
-            model.supportsImage ? Icons.image_outlined : Icons.chat_outlined,
-            color: isActive ? colorScheme.onPrimary : colorScheme.onSurface,
-          ),
-        ),
-        title: Text(
-          model.displayName,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-              ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(model.description,
-                style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              children: [
-                _Chip(model.sizeDisplay, Icons.storage_outlined),
-                if (model.supportsImage)
-                  _Chip('Multimodal', Icons.image_outlined),
-                if (model.supportsThinking)
-                  _Chip('Thinking', Icons.psychology_outlined),
-                if (unavailable)
-                  _Chip('Not available', Icons.block_outlined, isError: true),
-              ],
-            ),
-          ],
-        ),
-        trailing: isActive && isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : isActive
-                ? Icon(Icons.check_circle, color: colorScheme.primary)
-                : Icon(
-                    unavailable ? Icons.block : Icons.download_outlined,
-                    color: unavailable
-                        ? colorScheme.error
-                        : colorScheme.onSurfaceVariant,
+    return GlassCard(
+      onTap: unavailable ? null : onSelect,
+      padding: const EdgeInsets.all(16),
+      tint: isActive ? scheme.primary : null,
+      opacity: isActive ? 0.18 : 0.14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: isActive
+                        ? [scheme.primary, scheme.tertiary]
+                        : [
+                            scheme.primary.withValues(alpha: 0.7),
+                            scheme.secondary.withValues(alpha: 0.7),
+                          ],
                   ),
-        onTap: unavailable ? null : onSelect,
+                  boxShadow: [
+                    BoxShadow(
+                      color: scheme.primary.withValues(alpha: 0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  model.supportsImage
+                      ? Icons.image_outlined
+                      : Icons.chat_outlined,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      model.displayName,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      model.sizeDisplay,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isActive && isLoading)
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (isActive)
+                Icon(Icons.check_circle_rounded,
+                    color: scheme.primary, size: 24)
+              else
+                Icon(
+                  unavailable
+                      ? Icons.block_rounded
+                      : Icons.download_rounded,
+                  color: unavailable
+                      ? scheme.error
+                      : scheme.onSurface.withValues(alpha: 0.55),
+                  size: 22,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            model.description,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurface.withValues(alpha: 0.75),
+                  height: 1.4,
+                ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (model.supportsImage)
+                _GlassChip('Multimodal', Icons.image_outlined),
+              if (model.supportsThinking)
+                _GlassChip('Thinking', Icons.psychology_outlined),
+              if (unavailable)
+                _GlassChip('Not available', Icons.block_outlined,
+                    isError: true),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _Chip extends StatelessWidget {
+class _GlassChip extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool isError;
 
-  const _Chip(this.label, this.icon, {this.isError = false});
+  const _GlassChip(this.label, this.icon, {this.isError = false});
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon,
-            size: 12,
-            color: isError ? colorScheme.error : colorScheme.outline),
-        const SizedBox(width: 2),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: isError ? colorScheme.error : colorScheme.outline,
-              ),
+    final scheme = Theme.of(context).colorScheme;
+    final color = isError ? scheme.error : scheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: color.withValues(alpha: 0.4),
+          width: 1,
         ),
-      ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }

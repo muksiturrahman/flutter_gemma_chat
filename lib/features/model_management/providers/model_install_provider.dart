@@ -12,16 +12,14 @@ final modelRepositoryProvider = Provider<ModelRepository>((ref) {
 
 // ── Active model ID (persisted) ───────────────────────────────────────────────
 
-final activeModelIdProvider =
-    StateNotifierProvider<ActiveModelIdNotifier, String?>((ref) {
-  final repo = ref.watch(modelRepositoryProvider);
-  return ActiveModelIdNotifier(repo);
-});
+class ActiveModelIdNotifier extends Notifier<String?> {
+  late final ModelRepository _repo;
 
-class ActiveModelIdNotifier extends StateNotifier<String?> {
-  final ModelRepository _repo;
-
-  ActiveModelIdNotifier(this._repo) : super(_repo.activeModelId);
+  @override
+  String? build() {
+    _repo = ref.read(modelRepositoryProvider);
+    return _repo.activeModelId;
+  }
 
   Future<void> set(String id) async {
     await _repo.setActiveModelId(id);
@@ -29,14 +27,23 @@ class ActiveModelIdNotifier extends StateNotifier<String?> {
   }
 }
 
+final activeModelIdProvider =
+    NotifierProvider<ActiveModelIdNotifier, String?>(
+  ActiveModelIdNotifier.new,
+);
+
 // ── Model loading state ───────────────────────────────────────────────────────
 
 enum ModelLoadState { idle, loading, ready, error }
 
-class ModelLoadNotifier extends StateNotifier<ModelLoadState> {
-  final ModelRepository _repo;
+class ModelLoadNotifier extends Notifier<ModelLoadState> {
+  late final ModelRepository _repo;
 
-  ModelLoadNotifier(this._repo) : super(ModelLoadState.idle);
+  @override
+  ModelLoadState build() {
+    _repo = ref.read(modelRepositoryProvider);
+    return ModelLoadState.idle;
+  }
 
   Future<void> loadModel(GemmaModelInfo info) async {
     state = ModelLoadState.loading;
@@ -60,33 +67,54 @@ class ModelLoadNotifier extends StateNotifier<ModelLoadState> {
 }
 
 final modelLoadProvider =
-    StateNotifierProvider<ModelLoadNotifier, ModelLoadState>((ref) {
-  return ModelLoadNotifier(ref.watch(modelRepositoryProvider));
-});
+    NotifierProvider<ModelLoadNotifier, ModelLoadState>(
+  ModelLoadNotifier.new,
+);
 
 // ── Installation stream ───────────────────────────────────────────────────────
 
 class InstallState {
   final bool isInstalling;
-  final int progress;
+  final int progress; // 0–100
+  final int downloadedKb;
+  final int totalKb;
+  final double speedKBps; // smoothed
+  final int? etaSeconds;
   final String? error;
 
   const InstallState({
     this.isInstalling = false,
     this.progress = 0,
+    this.downloadedKb = 0,
+    this.totalKb = 0,
+    this.speedKBps = 0,
+    this.etaSeconds,
     this.error,
   });
 
-  InstallState copyWith({bool? isInstalling, int? progress, String? error}) =>
+  InstallState copyWith({
+    bool? isInstalling,
+    int? progress,
+    int? downloadedKb,
+    int? totalKb,
+    double? speedKBps,
+    int? etaSeconds,
+    String? error,
+  }) =>
       InstallState(
         isInstalling: isInstalling ?? this.isInstalling,
         progress: progress ?? this.progress,
+        downloadedKb: downloadedKb ?? this.downloadedKb,
+        totalKb: totalKb ?? this.totalKb,
+        speedKBps: speedKBps ?? this.speedKBps,
+        etaSeconds: etaSeconds,
         error: error,
       );
 }
 
-class ModelInstallNotifier extends StateNotifier<InstallState> {
-  ModelInstallNotifier() : super(const InstallState());
+class ModelInstallNotifier extends Notifier<InstallState> {
+  @override
+  InstallState build() => const InstallState();
 
   Future<void> install({
     required GemmaModelInfo info,
@@ -99,7 +127,12 @@ class ModelInstallNotifier extends StateNotifier<InstallState> {
       return;
     }
 
-    state = const InstallState(isInstalling: true, progress: 0);
+    final totalKb = info.sizeMb * 1024;
+    state = InstallState(
+      isInstalling: true,
+      progress: 0,
+      totalKb: totalKb,
+    );
 
     final stream = GemmaService.instance.installModelFromNetwork(
       url: url,
@@ -109,17 +142,84 @@ class ModelInstallNotifier extends StateNotifier<InstallState> {
       authToken: authToken,
     );
 
-    await for (final p in stream) {
-      state = state.copyWith(progress: p);
-    }
+    DateTime lastSampleTime = DateTime.now();
+    int lastSampleKb = 0;
+    double smoothedKBps = 0;
 
-    state = const InstallState(isInstalling: false, progress: 100);
+    try {
+      await for (final p in stream) {
+        // Negative progress = download lib's failure signal.
+        if (p < 0) {
+          throw Exception(
+              'Download failed — network unstable. Try a smaller model or a real device.');
+        }
+
+        final now = DateTime.now();
+        final downloadedKb = (p * totalKb / 100).round();
+
+        // Retry happened — progress jumped backwards. Reset the speed tracker
+        // so we don't compute a giant negative speed.
+        if (downloadedKb < lastSampleKb) {
+          lastSampleKb = downloadedKb;
+          lastSampleTime = now;
+          smoothedKBps = 0;
+          state = state.copyWith(
+            progress: p,
+            downloadedKb: downloadedKb,
+            speedKBps: 0,
+            etaSeconds: null,
+          );
+          continue;
+        }
+
+        // Always update progress + bytes for a smooth bar.
+        state = state.copyWith(
+          progress: p,
+          downloadedKb: downloadedKb,
+        );
+
+        // Sample speed/ETA 4x/sec — fast enough to feel live, slow enough
+        // that EMA actually smooths the jitter.
+        final dt = now.difference(lastSampleTime).inMilliseconds / 1000.0;
+        if (dt >= 0.25) {
+          final deltaKb = downloadedKb - lastSampleKb;
+          final instantKBps = deltaKb / dt;
+          smoothedKBps = smoothedKBps == 0
+              ? instantKBps
+              : 0.4 * instantKBps + 0.6 * smoothedKBps;
+
+          final remainingKb = totalKb - downloadedKb;
+          final etaSeconds = smoothedKBps > 0.5
+              ? (remainingKb / smoothedKBps).round()
+              : null;
+
+          state = state.copyWith(
+            speedKBps: smoothedKBps,
+            etaSeconds: etaSeconds,
+          );
+
+          lastSampleTime = now;
+          lastSampleKb = downloadedKb;
+        }
+      }
+      state = InstallState(
+        isInstalling: false,
+        progress: 100,
+        totalKb: totalKb,
+        downloadedKb: totalKb,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isInstalling: false,
+        error: e.toString(),
+      );
+    }
   }
 
   void reset() => state = const InstallState();
 }
 
 final modelInstallProvider =
-    StateNotifierProvider<ModelInstallNotifier, InstallState>((ref) {
-  return ModelInstallNotifier();
-});
+    NotifierProvider<ModelInstallNotifier, InstallState>(
+  ModelInstallNotifier.new,
+);

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -62,55 +63,158 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final canSend = _hasText || _pendingImage != null;
+
     return SafeArea(
+      top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_pendingImage != null) _ImagePreview(
-              bytes: _pendingImage!,
-              onRemove: () => setState(() => _pendingImage = null),
-            ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (widget.supportsImage)
-                  IconButton(
-                    icon: const Icon(Icons.image_outlined),
-                    onPressed: widget.isStreaming ? null : _pickImage,
-                    tooltip: 'Attach image',
-                  ),
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    minLines: 1,
-                    maxLines: 5,
-                    textCapitalization: TextCapitalization.sentences,
-                    enabled: !widget.isStreaming,
-                    decoration: const InputDecoration(
-                      hintText: 'Message…',
-                      filled: true,
-                    ),
-                    onSubmitted: (_) => _send(),
-                  ),
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                color: (isDark ? Colors.white : Colors.white)
+                    .withValues(alpha: isDark ? 0.10 : 0.5),
+                border: Border.all(
+                  color: Colors.white
+                      .withValues(alpha: isDark ? 0.15 : 0.55),
+                  width: 1,
                 ),
-                const SizedBox(width: 8),
-                widget.isStreaming
-                    ? IconButton.filled(
-                        onPressed: widget.onStop,
-                        icon: const Icon(Icons.stop_rounded),
-                        tooltip: 'Stop',
-                      )
-                    : IconButton.filled(
-                        onPressed:
-                            (_hasText || _pendingImage != null) ? _send : null,
-                        icon: const Icon(Icons.send_rounded),
-                        tooltip: 'Send',
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black
+                        .withValues(alpha: isDark ? 0.32 : 0.08),
+                    blurRadius: 24,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_pendingImage != null)
+                    _ImagePreview(
+                      bytes: _pendingImage!,
+                      onRemove: () => setState(() => _pendingImage = null),
+                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (widget.supportsImage)
+                        IconButton(
+                          icon: const Icon(Icons.image_outlined),
+                          color: scheme.onSurface.withValues(alpha: 0.75),
+                          onPressed:
+                              widget.isStreaming ? null : _pickImage,
+                          tooltip: 'Attach image',
+                        ),
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          minLines: 1,
+                          maxLines: 5,
+                          textCapitalization:
+                              TextCapitalization.sentences,
+                          enabled: !widget.isStreaming,
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 15,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Message…',
+                            hintStyle: TextStyle(
+                              color: scheme.onSurface
+                                  .withValues(alpha: 0.45),
+                            ),
+                            filled: false,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 14),
+                          ),
+                          onSubmitted: (_) => _send(),
+                        ),
                       ),
-              ],
+                      const SizedBox(width: 4),
+                      _SendButton(
+                        streaming: widget.isStreaming,
+                        canSend: canSend,
+                        onSend: _send,
+                        onStop: widget.onStop,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SendButton extends StatelessWidget {
+  final bool streaming;
+  final bool canSend;
+  final VoidCallback onSend;
+  final VoidCallback onStop;
+
+  const _SendButton({
+    required this.streaming,
+    required this.canSend,
+    required this.onSend,
+    required this.onStop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final enabled = streaming || canSend;
+
+    return GestureDetector(
+      onTap: enabled ? (streaming ? onStop : onSend) : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 42,
+        height: 42,
+        margin: const EdgeInsets.only(right: 4, bottom: 4),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: enabled
+              ? LinearGradient(
+                  colors: [scheme.primary, scheme.tertiary],
+                )
+              : null,
+          color: enabled
+              ? null
+              : scheme.onSurface.withValues(alpha: 0.12),
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: scheme.primary.withValues(alpha: 0.4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Icon(
+          streaming
+              ? Icons.stop_rounded
+              : Icons.arrow_upward_rounded,
+          color: enabled
+              ? Colors.white
+              : scheme.onSurface.withValues(alpha: 0.4),
+          size: 20,
         ),
       ),
     );
@@ -126,22 +230,28 @@ class _ImagePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
       child: Stack(
         alignment: Alignment.topRight,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             child: Image.memory(bytes, height: 80, fit: BoxFit.cover),
           ),
-          GestureDetector(
-            onTap: onRemove,
-            child: Container(
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.black54,
+          Padding(
+            padding: const EdgeInsets.all(4),
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withValues(alpha: 0.65),
+                ),
+                child: const Icon(Icons.close_rounded,
+                    size: 16, color: Colors.white),
               ),
-              child: const Icon(Icons.close, size: 18, color: Colors.white),
             ),
           ),
         ],
