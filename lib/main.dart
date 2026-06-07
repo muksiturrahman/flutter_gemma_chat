@@ -19,6 +19,14 @@ void main() async {
   await ChatRepository.openBox();
   await ModelRepository.openBox();
 
+  // GPU crash recovery: if a GPU load was in progress when the app last died,
+  // it crashed natively — mark the GPU unusable so we use CPU from now on.
+  final modelRepo = ModelRepository();
+  if (modelRepo.gpuAttemptPending) {
+    await modelRepo.setGpuKnownBad(true);
+    await modelRepo.setGpuAttemptPending(false);
+  }
+
   // Load the HuggingFace token from lib/.env (or --dart-define).
   await AppSecrets.load();
 

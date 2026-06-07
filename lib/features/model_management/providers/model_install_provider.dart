@@ -63,19 +63,28 @@ class ModelLoadNotifier extends Notifier<ModelLoadState> {
         );
       }
 
-      // GPU init crashes natively (SIGSEGV) on emulators that lack OpenCL, and
-      // a native crash can't be caught — so force CPU there regardless of the
-      // saved preference.
+      // GPU init can crash the process natively (SIGSEGV) on devices without a
+      // working OpenCL/GPU delegate — emulators always, and some real devices.
+      // A native crash can't be caught, so we guard it three ways:
+      //   1. never use GPU on emulators (no OpenCL at all),
+      //   2. never use GPU once it has crashed here before (gpuKnownBad),
+      //   3. set a persisted "pending" flag before the attempt; if the app
+      //      dies during it, main() sees the flag next launch and disables GPU.
       final prefersGpu = _repo.preferredBackendIndex != 0;
       final canUseGpu = await DeviceCapabilities.canUseGpu;
-      final backend = (prefersGpu && canUseGpu)
-          ? PreferredBackend.gpu
-          : PreferredBackend.cpu;
+      final useGpu = prefersGpu && canUseGpu && !_repo.gpuKnownBad;
+
+      if (useGpu) {
+        await _repo.setGpuAttemptPending(true);
+      }
       await GemmaService.instance.loadModel(
         supportImage: info.supportsImage,
-        backend: backend,
+        backend: useGpu ? PreferredBackend.gpu : PreferredBackend.cpu,
         maxTokens: _repo.maxTokens,
       );
+      if (useGpu) {
+        await _repo.setGpuAttemptPending(false);
+      }
       state = ModelLoadState.ready;
     } catch (_) {
       state = ModelLoadState.error;

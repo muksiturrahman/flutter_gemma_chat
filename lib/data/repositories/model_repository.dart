@@ -6,6 +6,8 @@ class ModelRepository {
   static const _backendKey = 'preferred_backend';
   static const _maxTokensKey = 'max_tokens';
   static const _themeKey = 'theme_mode';
+  static const _gpuKnownBadKey = 'gpu_known_bad';
+  static const _gpuAttemptPendingKey = 'gpu_attempt_pending';
 
   Box get _box => Hive.box(_settingsBoxName);
 
@@ -31,4 +33,21 @@ class ModelRepository {
   // 0 = system, 1 = light, 2 = dark
   int get themeModeIndex => _box.get(_themeKey, defaultValue: 0) as int;
   Future<void> setThemeModeIndex(int i) => _box.put(_themeKey, i);
+
+  // ── GPU crash recovery ──────────────────────────────────────────────────
+  // GPU/OpenCL init can crash the whole process natively (SIGSEGV) on devices
+  // without a working GPU delegate — a crash Dart can't catch. We persist a
+  // flag right before each GPU attempt and clear it on success; if the app
+  // restarts and the flag is still set, the previous attempt crashed, so we
+  // permanently mark the GPU as unusable and fall back to CPU.
+
+  /// True once a GPU load has crashed on this device — force CPU from then on.
+  bool get gpuKnownBad => _box.get(_gpuKnownBadKey, defaultValue: false) as bool;
+  Future<void> setGpuKnownBad(bool v) => _box.put(_gpuKnownBadKey, v);
+
+  /// Set immediately before a GPU init, cleared right after it succeeds.
+  bool get gpuAttemptPending =>
+      _box.get(_gpuAttemptPendingKey, defaultValue: false) as bool;
+  Future<void> setGpuAttemptPending(bool v) =>
+      _box.put(_gpuAttemptPendingKey, v);
 }

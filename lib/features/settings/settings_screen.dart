@@ -30,6 +30,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await repo.setPreferredBackendIndex(_backendIdx);
     await repo.setMaxTokens(_maxTokens);
     await repo.setThemeModeIndex(_themeIdx);
+    // Explicitly choosing GPU is an opt-in to retry it, even if it crashed
+    // before. Crash recovery will disable it again if it still fails.
+    if (_backendIdx != 0) {
+      await repo.setGpuKnownBad(false);
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

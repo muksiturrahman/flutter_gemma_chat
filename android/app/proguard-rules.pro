@@ -11,6 +11,10 @@
 -dontwarn com.google.mediapipe.proto.CalculatorProfileProto$CalculatorProfile
 -dontwarn com.google.mediapipe.proto.GraphTemplateProto$CalculatorGraphTemplate
 
+# AutoValue @Memoized annotation referenced by MediaPipe's MPImageProperties
+# but absent at runtime — compile-time annotation only, safe to ignore.
+-dontwarn com.google.auto.value.extension.memoized.Memoized
+
 # Keep Flutter embedding
 -keep class io.flutter.** { *; }
 -keep class io.flutter.embedding.** { *; }
