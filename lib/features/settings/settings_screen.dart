@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/widgets/glass_container.dart';
 import '../model_management/providers/model_install_provider.dart';
+import 'providers/settings_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -29,7 +30,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final repo = ref.read(modelRepositoryProvider);
     await repo.setPreferredBackendIndex(_backendIdx);
     await repo.setMaxTokens(_maxTokens);
-    await repo.setThemeModeIndex(_themeIdx);
+    // Theme goes through its notifier so the change rebuilds the app instantly.
+    await ref.read(themeModeProvider.notifier).setIndex(_themeIdx);
     // Explicitly choosing GPU is an opt-in to retry it, even if it crashed
     // before. Crash recovery will disable it again if it still fails.
     if (_backendIdx != 0) {

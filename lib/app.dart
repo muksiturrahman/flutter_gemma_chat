@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'core/routing/app_router.dart';
 import 'core/widgets/gradient_background.dart';
-import 'features/model_management/providers/model_install_provider.dart';
+import 'features/settings/providers/settings_provider.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -11,13 +11,7 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
-    final themeIdx = ref.watch(modelRepositoryProvider).themeModeIndex;
-
-    final themeMode = switch (themeIdx) {
-      1 => ThemeMode.light,
-      2 => ThemeMode.dark,
-      _ => ThemeMode.system,
-    };
+    final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
       title: 'Gemma Chat',
